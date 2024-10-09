@@ -47,6 +47,6 @@ int main()
     return 0;
 }
 ```
-## Dependencis
+## Dependencies
 - C++20 or above
 - Eigen
