@@ -12,12 +12,15 @@ namespace GWO
     std::mt19937 mt(rd());
     namespace constants
     {
-        const size_t N = 10; // number of variables
-        const int K = 3;     // best k wolves
-        const int POP_SIZE = 100;
-        const float maxRange = 15.0f;
-        const float minRange = -15.0f;
+        size_t K = 3; // best k wolves
     }
+    struct Setup
+    {
+        size_t N{};
+        size_t POP_SIZE{};
+        float maxRange{};
+        float minRange{};
+    };
     template <std::floating_point T>
     T random(T min, T max)
     {
@@ -27,63 +30,69 @@ namespace GWO
     template <std::floating_point T>
     struct Wolf
     {
-        using Type = T;
-        Wolf() : pos(constants::N)
+        Wolf(size_t n) : pos(n), len(n) {}
+        void randomize(T min, T max)
         {
-            for (auto i = 0; i < constants::N; i++)
+            for (size_t i = 0; i < len; i++)
             {
-                pos[i] = random(constants::minRange, constants::maxRange);
+                pos[i] = random(min, max);
             }
         }
-        T savedFitness {};
-        virtual T fitness() const = 0;
+        T savedFitness{};
         Eigen::ArrayX<T> pos;
+        size_t len{};
     };
     template <std::floating_point T>
     std::ostream &operator<<(std::ostream &os, const Wolf<T> &wolf)
     {
         std::cout << "[";
-        for (auto i = 0; i < constants::N; i++)
+        for (size_t i = 0; i < wolf.len - 1; i++)
         {
             std::cout << wolf.pos[i];
-            if (i < constants::N - 1)
-            {
-                std::cout << ",";
-            }
+            std::cout << ",";
         }
+        std::cout << wolf.pos[wolf.len - 1];
         std::cout << "]";
         return os;
     }
-    template <typename W>
-    concept NumericWolf = (std::floating_point<typename W::Type> && std::derived_from<W, Wolf<typename W::Type>>);
-
-    template <NumericWolf _Wolf>
-
+    template <std::floating_point T>
     class Comparator
     {
     public:
-        bool operator()(const _Wolf &w1, const _Wolf &w2)
+        bool operator()(const Wolf<T> &w1, const Wolf<T> &w2)
         {
             return w1.savedFitness < w2.savedFitness;
         }
     };
-    template <NumericWolf _Wolf>
-
-    struct GWOState
+    template <std::floating_point T>
+    struct Problem
     {
-        using T = _Wolf::Type;
-        GWOState() : population(constants::POP_SIZE)
+        virtual T fitness(const Eigen::ArrayX<T> &pos) const = 0;
+        Problem(Setup _setup) : nextPos(_setup.N),
+                                A(_setup.N), C(_setup.N), setup(_setup)
+        {
+            for (size_t i = 0; i < setup.POP_SIZE; i++)
+            {
+                population.emplace_back(setup.N);
+                population.back().randomize(setup.minRange, setup.maxRange);
+            }
+        }
+        Wolf<T> run(int maxIterations)
         {
             for (auto &wolf : population)
             {
                 addWolf(wolf);
             }
+            for (int i = 0; i < maxIterations; i++)
+            {
+                T a = 2 * (1 - T(i) / T(maxIterations));
+                updatePopulation(a);
+            }
+            return getBestKWolves()[0];
         }
-        std::vector<_Wolf> population;
-        std::priority_queue<_Wolf, std::vector<_Wolf>, Comparator<_Wolf>> heap;
-        void addWolf(_Wolf &wolf)
+        void addWolf(Wolf<T> &wolf)
         {
-            wolf.savedFitness = wolf.fitness();
+            wolf.savedFitness = fitness(wolf.pos);
             heap.push(wolf);
             if (heap.size() > constants::K)
             {
@@ -92,7 +101,7 @@ namespace GWO
         }
         auto getBestKWolves()
         {
-            std::vector<_Wolf> bestWolves;
+            std::vector<Wolf<T>> bestWolves;
             auto copy = heap;
             while (!copy.empty())
             {
@@ -104,16 +113,12 @@ namespace GWO
         void updatePopulation(T a)
         {
             auto bestWolves = getBestKWolves();
-
             for (auto &wolf : population)
             {
-                Eigen::ArrayX<T> nextPos(constants::N);
                 nextPos.setZero();
-                for (auto j = 0; j < constants::K; j++)
+                for (size_t j = 0; j < constants::K; j++)
                 {
-                    Eigen::ArrayX<T> A(constants::N);
-                    Eigen::ArrayX<T> C(constants::N);
-                    for (auto k = 0; k < constants::N; k++)
+                    for (size_t k = 0; k < setup.N; k++)
                     {
                         A[k] = 2 * a * random(0.0, 1.0) - a;
                         C[k] = 2 * random(0.0, 1.0);
@@ -123,23 +128,16 @@ namespace GWO
                     nextPos += bestWolf.pos - D * A;
                 }
                 nextPos *= (1.0 / T(constants::K));
-                wolf.pos = nextPos.max(constants::minRange).min(constants::maxRange);
+                wolf.pos = nextPos.max(setup.minRange).min(setup.maxRange);
                 addWolf(wolf);
             }
         }
+        std::vector<Wolf<T>> population;
+        std::priority_queue<Wolf<T>, std::vector<Wolf<T>>, Comparator<T>> heap;
+        Eigen::ArrayX<T> nextPos;
+        Eigen::ArrayX<T> A;
+        Eigen::ArrayX<T> C;
+        const Setup setup;
     };
-    template <NumericWolf _Wolf>
-    _Wolf run(int maxIterations)
-    {
-        using T = _Wolf::Type;
-
-        GWOState<_Wolf> state;
-        for (int i = 0; i < maxIterations; i++)
-        {
-            T a = 2 * (1 - T(i) / T(maxIterations));
-            state.updatePopulation(a);
-        }
-        return state.getBestKWolves()[0];
-    }
 }
 #endif
