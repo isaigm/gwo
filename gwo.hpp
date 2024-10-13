@@ -71,6 +71,14 @@ namespace GWO
         Problem(Setup _setup) : nextPos(_setup.N),
                                 A(_setup.N), C(_setup.N), setup(_setup)
         {
+            if (setup.N == 0 || setup.POP_SIZE == 0)
+            {
+                throw std::invalid_argument("N and POP_SIZE must be greater than zero.");
+            }
+            if (setup.maxRange <= setup.minRange)
+            {
+                throw std::invalid_argument("maxRange must be greater than minRange.");
+            }
             for (size_t i = 0; i < setup.POP_SIZE; i++)
             {
                 population.emplace_back(setup.N);
@@ -105,7 +113,7 @@ namespace GWO
             auto copy = heap;
             while (!copy.empty())
             {
-                bestWolves.push_back(copy.top());
+                bestWolves.push_back(std::move(copy.top()));
                 copy.pop();
             }
             return bestWolves;

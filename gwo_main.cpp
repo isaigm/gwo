@@ -38,7 +38,7 @@ struct Problem : public GWO::Problem<double>
 };
 int main()
 {
-    GWO::Setup setup{.N = 10, .POP_SIZE = 100, .maxRange = 15.0, .minRange = -15.0};
+    GWO::Setup setup{.N = 10, .POP_SIZE = 10, .maxRange = 15.0, .minRange = -15.0};
     Problem problem(setup);
     auto wolf = problem.run(500);
     std::cout << wolf.savedFitness << "\n";
